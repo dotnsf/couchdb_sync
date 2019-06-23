@@ -160,7 +160,8 @@ function updateRecord(){
 
   console.log( doc );
   local_db.put( doc ).then( function( result ){
-    showRecords();
+    //. 同期イベントが発生するので、ここでは更新しない
+    //showRecords();
   }).catch( function( err ){
     console.log( err );
   });
