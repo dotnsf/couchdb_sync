@@ -18,116 +18,71 @@ $(function(){
     remote_db.sync( local_db, {
       live: true,
       retry: true
-    }).on( 'paused', function( err ){
+    }).on( 'paused', function( evt ){
+      //. データ更新後、paused イベントが２度発生する？
+      //console.log( JSON.stringify( evt, null, 2 ) ); //. undefined
       showRecords();
     });
   });
 });
 
-function pushRecord( mininglevel, goal, seconds ){
-  var type = 'POST';
-  var data = { user_id: user_id, mininglevel: mininglevel, goal: goal, seconds: seconds };
-
-  //console.log( data );
-  var obj = getBusyOverlay( 'viewport', {color:'black', opacity:0.5, text:'loading', style:'text-decoration:blink; font-weight:bold; font-size:12px; color:white;' } );
-  $.ajax({
-    type: 'POST',
-    url: '/doc',
-    data: data,
-    success: function( result ){
-      obj.remove();
-      //console.log( result );
-      if( result.doc && result.doc.id ){
-        doc_ids.push( result.doc.id );
-        console.log( doc_ids );
-        local_statedb.replicate.from( remote_statedb, {   //. active -> change -> paused ?
-          doc_ids: doc_ids,
-          live: true,
-          retry: true
-        }).on( 'change', function( info ){
-          console.log( 'local_statedb.sync : change' );
-          //console.log( info );
-        }).on( 'paused', function( err ){
-          console.log( 'local_statedb.sync : paused' );
-          //console.log( err );
-/*
-          local_solo.replicate.from( remote_solo, {
-            live: true,
-            retry: true
-          }).on( 'paused', function( err ){
-            console.log( 'local_solo.sync : paused' );
-            showRecords();
-          });
-*/
-        }).on( 'active', function(){
-          console.log( 'local_statedb.sync : active' );
-        }).on( 'denied', function( err ){
-          console.log( 'local_statedb.sync : denied' );
-        }).on( 'complete', function( info ){
-          console.log( 'local_statedb.sync : complete' );
-        }).on( 'error', function( err ){
-          console.log( 'local_statedb.sync : error' );
-          //console.log( err );
-        });
-      }
-    },
-    error: function( err ){
-      obj.remove();
-      console.log( err );
-    }
-  });
-}
-
+var onProcess = false;  //. 二重処理防止用フラグ
 function showRecords(){
-  $('#records_tbody').html( '' );
-  local_db.allDocs( { include_docs: true } ).then( function( docs ){
-    if( docs && docs.rows ){
-      var _docs = [];
-      docs.rows.forEach( function( doc ){
-        if( doc.id.indexOf( '_' ) !== 0 ){
-          //console.log( doc.doc );
-          _docs.push( doc.doc );
-        }
-      });
+  if( !onProcess ){
+    onProcess = true;
 
-      console.log( _docs );
-      _docs = sortDocuments( _docs, 'updated' );
+    $('#records_tbody').html( '' );
+    local_db.allDocs( { include_docs: true } ).then( function( docs ){
+      if( docs && docs.rows ){
+        var _docs = [];
+        docs.rows.forEach( function( doc ){
+          if( doc.id.indexOf( '_' ) !== 0 ){
+            //console.log( doc.doc );
+            _docs.push( doc.doc );
+          }
+        });
 
-      //. table
-      _docs.forEach( function( doc ){
-        var tr = '<tr>'
-          + '<td>' + hash4display( doc._id ) + '</td>'
-          + '<td>' + doc.username + '</td>'
-          + '<td>' + doc.body + '</td>'
-          + '<td>' + timestamp2datetime( doc.updated ) + '</td>'
+        //console.log( _docs );
+        _docs = sortDocuments( _docs, 'updated' );
+
+        //. table
+        _docs.forEach( function( doc ){
+          var tr = '<tr>'
+            + '<td>' + hash4display( doc._id ) + '</td>'
+            + '<td>' + doc.username + '</td>'
+            + '<td>' + doc.body + '</td>'
+            + '<td>' + timestamp2datetime( doc.updated ) + '</td>'
+            + '<td>'
+            + "<button class='btn btn-primary' title='edit' onClick='editRecord(" + JSON.stringify( doc ) + ")'><i class='fas fa-edit'></i> </button>"
+            + "<button class='btn btn-success' data-toggle='modal' data-target='#myModal' title='revisions' onClick='showRevHistory(\"" + doc._id + "\")'><i class='far fa-copy'></i> </button>"
+            + "<button class='btn btn-warning' title='delete' onClick='deleteRecord(\"" + doc._id + "\")'><i class='fas fa-trash-alt'></i> </button>"
+            + '</td>'
+            + '</tr>';
+          $('#records_tbody').append( tr );
+        });
+
+        var tr0 = '<tr>'
+          + '<td id="edit_id"></td>'
+          + '<td><input type="text" id="edit_username" value=""/></td>'
+          + '<td><input type="text" id="edit_body" value=""/></td>'
+          + '<td> - '
+          + '<input type="hidden" id="edit_rev" value=""/>'
+          + '<input type="hidden" id="edit_created" value=""/>'
+          + '<input type="hidden" id="edit_updated" value=""/>'
+          + '</td>'
           + '<td>'
-          + "<button class='btn btn-primary' title='edit' onClick='editRecord(" + JSON.stringify( doc ) + ")'><i class='fas fa-edit'></i> </button>"
-          + "<button class='btn btn-success' data-toggle='modal' data-target='#myModal' title='revisions' onClick='showRevHistory(\"" + doc._id + "\")'><i class='far fa-copy'></i> </button>"
-          + "<button class='btn btn-warning' title='delete' onClick='deleteRecord(\"" + doc._id + "\")'><i class='fas fa-trash-alt'></i> </button>"
+          + "<button class='btn btn-primary' title='update' onClick='updateRecord()'><i class='fas fa-save'></i> </button>"
           + '</td>'
           + '</tr>';
-        $('#records_tbody').append( tr );
-      });
-
-      var tr0 = '<tr>'
-        + '<td id="edit_id"></td>'
-        + '<td><input type="text" id="edit_username" value=""/></td>'
-        + '<td><input type="text" id="edit_body" value=""/></td>'
-        + '<td> - '
-        + '<input type="hidden" id="edit_rev" value=""/>'
-        + '<input type="hidden" id="edit_created" value=""/>'
-        + '<input type="hidden" id="edit_updated" value=""/>'
-        + '</td>'
-        + '<td>'
-        + "<button class='btn btn-primary' title='update' onClick='updateRecord()'><i class='fas fa-save'></i> </button>"
-        + '</td>'
-        + '</tr>';
-      $('#records_tbody').append( tr0 );
-    }
-  }).catch( function( err ){
-    console.log( 'local_db' );
-    console.log( err );
-  });
+        $('#records_tbody').append( tr0 );
+      }
+      onProcess = false;
+    }).catch( function( err ){
+      onProcess = false;
+      //console.log( 'local_db' );
+      console.log( err );
+    });
+  }
 }
 
 function editRecord( doc ){
@@ -158,7 +113,7 @@ function updateRecord(){
     doc.created = doc.updated;
   }
 
-  console.log( doc );
+  //console.log( doc );
   local_db.put( doc ).then( function( result ){
     //. 同期イベントが発生するので、ここでは更新しない
     //showRecords();
@@ -172,7 +127,8 @@ function deleteRecord( record_id ){
     if( window.confirm( '指定レコードを削除します。よろしいですか？' ) ){
       local_db.get( record_id ).then( function( doc ){
         local_db.remove( doc, {}, function(){} );
-        showRecords();
+        //. 同期イベントが発生するので、ここでは更新しない
+        //showRecords();
       }).catch( function( err ){
         console.log( err );
       });
