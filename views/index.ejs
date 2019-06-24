@@ -136,6 +136,26 @@ function deleteRecord( record_id ){
   }
 }
 
+function reset(){
+  if( window.confirm( '全レコードを削除します。よろしいですか？' ) ){
+    local_db.allDocs( {} ).then( function( result ){
+      if( result && result.rows ){
+        var docs = [];
+        result.rows.forEach( function( doc ){
+          if( doc.id.indexOf( '_' ) !== 0 ){
+            docs.push( { _id: doc.id, _rev: doc.value.rev, _deleted: true } );
+          }
+        });
+
+        //console.log( JSON.stringify( docs, null, 2 ) );
+        local_db.bulkDocs( docs );
+      }
+    }).catch( function( err ){
+      console.log( err );
+    });
+  }
+}
+
 function showRevHistory( doc_id ){
   if( doc_id ){
     $('#rev_list').html( '' );
@@ -289,6 +309,7 @@ label{
 <nav class="navbar navbar-light bg-light">
   <a class="navbar-brand" href="#">CouchDB Sync</a>
   <ul class="navbar-nav float-right" style="float:right!important;" id="navbar">
+    <li><button class='btn btn-danger' title='reset' onClick='reset()'><i class='fas fa-trash-alt'></i> </button></li>
   </ul>
 </nav>
 
