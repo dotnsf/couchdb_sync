@@ -25,7 +25,7 @@ Sample application which confirms working feature of Apach CouchDB Synchronizati
 
 This code is licensed under MIT.
 
-https://gitlab.com/dotnsf/couchdb_replica/blob/master/LICENSE
+https://gitlab.com/dotnsf/couchdb_sync/blob/master/LICENSE
 
 
 ## Special Thanks
